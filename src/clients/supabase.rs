@@ -18,50 +18,100 @@ impl SupabaseClient {
 
 #[async_trait]
 impl Client for SupabaseClient {
-    async fn create<T: Serialize + Send + Sync>(
-        &self,
-        table: &str,
-        item: &T,
-    ) -> Result<serde_json::Value> {
-        let value = serde_json::json!(item).to_string();
-        let response = self
-            .postgrest
+    async fn create<T: Serialize + Send + Sync>(&self, table: &str, item: &T) -> Result<()> {
+        let tag = "SupabaseClient.create";
+        let s = serde_json::to_string(item).map_err(|e| anyhow!(e).context(tag))?;
+
+        let client = self.postgrest.clone();
+
+        let response = client
             .from(table)
-            .insert(value)
+            .insert(s)
             .execute()
             .await
-            .map_err(|e| anyhow!(e))?;
+            .map_err(|e| anyhow!(e).context(tag))?;
+
         if !response.status().is_success() {
-            bail!("Request failed with status: {}", response.status())
+            bail!("{}, Request failed with status: {}", tag, response.status())
         }
-        let txt = response.text().await?;
-        let data_list: Vec<serde_json::Value> = serde_json::from_str(&txt)?;
-        Ok(data_list.first().unwrap().clone())
+        Ok(())
     }
 
-    async fn find_by_ids<K: Serialize + Send + Sync>(
+    async fn find_by_keys<K: Serialize + Send + Sync>(
         &self,
         table: &str,
+        key: &str,
         ids: Vec<K>,
     ) -> Result<Vec<serde_json::Value>> {
-        let mut query = String::new();
-        for id in ids {
-            let id_str = serde_json::json!(&id);
-            query.push_str(&format!("id=eq.{}&", id_str));
-        }
-        let response = self
-            .postgrest
-            .from(table)
-            .select("*")
-            .eq("id", &query)
-            .execute()
-            .await
-            .map_err(|e| anyhow!(e))?;
+        let tag = "SupabaseClient.find_by_keys";
+
+        let client = self.postgrest.clone();
+        let ids = ids
+            .iter()
+            .map(|id| serde_json::to_string(id).map_err(|e| anyhow!(e).context(tag)))
+            .collect::<Result<Vec<String>>>()?;
+        let response = client.from(table).in_(key, &ids).execute().await?;
         if !response.status().is_success() {
-            bail!("Request failed with status: {}", response.status())
+            bail!(format!(
+                "{}, Request failed with status: {}",
+                tag,
+                response.status()
+            ));
         }
-        let txt = response.text().await?;
-        let data_list: Vec<serde_json::Value> = serde_json::from_str(&txt)?;
-        Ok(data_list)
+        let text = response.text().await.map_err(|e| anyhow!(e).context(tag))?;
+        let data = serde_json::from_str(&text).map_err(|e| anyhow!(e).context(tag))?;
+        Ok(data)
+    }
+
+    async fn update_by_keys<K: Serialize + Send + Sync, T: Serialize + Send + Sync>(
+        &self,
+        table: &str,
+        key: &str,
+        items: Vec<(K, T)>,
+    ) -> Result<()> {
+        let tag = "SupabaseClient.update_by_keys";
+
+        let client = self.postgrest.clone();
+        for item in items {
+            let mut query = client
+                .from(table)
+                .update(serde_json::to_string(&item.1).map_err(|e| anyhow!(e).context(tag))?);
+            let id = serde_json::to_string(&item.0).map_err(|e| anyhow!(e).context(tag))?;
+            query = query.eq(key, &id);
+            let response = query.execute().await?;
+            if !response.status().is_success() {
+                bail!(format!(
+                    "{}, Request failed with status: {}",
+                    tag,
+                    response.status()
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    async fn delete_by_keys<K: Serialize + Send + Sync>(
+        &self,
+        table: &str,
+        key: &str,
+        ids: Vec<K>,
+    ) -> Result<()> {
+        let tag = "SupabaseClient.delete_by_keys";
+
+        let client = self.postgrest.clone();
+        for id in ids {
+            let id = serde_json::to_string(&id).map_err(|e| anyhow!(e).context(tag))?;
+            let mut query = client.from(table).delete();
+            query = query.eq(key, id);
+            let response = query.execute().await?;
+            if !response.status().is_success() {
+                bail!(format!(
+                    "{}, Request failed with status: {}",
+                    tag,
+                    response.status()
+                ));
+            }
+        }
+        Ok(())
     }
 }

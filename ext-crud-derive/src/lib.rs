@@ -23,19 +23,28 @@ pub fn derive_extended_crud(input: TokenStream) -> TokenStream {
         _ => panic!("Only structs are supported"),
     };
 
-    let (primary_key_field, primary_key_type) = fields
+    let (primary_key_field, primary_key_type, primary_key_name) = fields
         .iter()
         .find(|f| {
             f.attrs
                 .iter()
                 .any(|attr| attr.path().is_ident("primary_key"))
         })
-        .map(|f| (f.ident.as_ref().unwrap(), &f.ty))
+        .map(|f| {
+            let primary_key_field = f.ident.as_ref().unwrap();
+            let primary_key_name = f
+                .attrs
+                .iter()
+                .find(|attr| attr.path().is_ident("primary_key"))
+                .map(|attr| attr.parse_args::<syn::LitStr>().unwrap().value())
+                .unwrap_or_else(|| primary_key_field.to_string());
+            (primary_key_field, &f.ty, primary_key_name)
+        })
         .or_else(|| {
             fields
                 .iter()
                 .find(|f| f.ident.as_ref().unwrap() == "id")
-                .map(|f| (f.ident.as_ref().unwrap(), &f.ty))
+                .map(|f| (f.ident.as_ref().unwrap(), &f.ty, "id".to_string()))
         })
         .expect("A field named 'id' or with #[primary_key] attribute is required");
 
@@ -44,6 +53,8 @@ pub fn derive_extended_crud(input: TokenStream) -> TokenStream {
             type PrimaryKey = #primary_key_type;
 
             const TABLE_NAME: &'static str = #table_name;
+
+            const PRIMARY_KEY_NAME: &'static str = #primary_key_name;
 
             fn primary_key(&self) -> &Self::PrimaryKey {
                  &self.#primary_key_field

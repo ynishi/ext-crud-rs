@@ -19,7 +19,7 @@ struct User {
 #[table_name("products")]
 #[partial_struct_name("ProductUpdate")]
 struct Product {
-    #[primary_key]
+    #[primary_key("product_id")]
     product_code: String,
     name: String,
     price: f64,
@@ -46,8 +46,8 @@ async fn main() -> Result<()> {
         price: 19.99,
     };
 
-    let created_product = product.create(&client).await?;
-    let mut product_update = created_product.to_partial();
+    product.clone().create(&client).await?;
+    let mut product_update = product.to_partial();
     product_update.price = Some(24.99);
 
     let mut new_partial_product = ProductUpdate::new();
