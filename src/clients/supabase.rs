@@ -1,18 +1,25 @@
+use crate::traits::Client;
 use anyhow::{anyhow, bail, Result};
 use async_trait::async_trait;
+use log::debug;
 use postgrest::Postgrest;
 use serde::Serialize;
-
-use crate::traits::Client;
 
 pub struct SupabaseClient {
     pub postgrest: Postgrest,
 }
 
 impl SupabaseClient {
-    pub fn new(url: &str) -> Self {
-        let postgrest = Postgrest::new(url);
+    pub fn new(url: &str, key: &str) -> Self {
+        let postgrest = Self::new_postgrest(url, key);
         Self { postgrest }
+    }
+
+    pub(crate) fn new_postgrest(url: &str, key: &str) -> Postgrest {
+        let endpoint = format!("{}/rest/v1/", url);
+        Postgrest::new(endpoint)
+            .insert_header("apikey", key)
+            .insert_header("Authorization", format!("Bearer {}", key))
     }
 }
 
@@ -20,8 +27,8 @@ impl SupabaseClient {
 impl Client for SupabaseClient {
     async fn create<T: Serialize + Send + Sync>(&self, table: &str, item: &T) -> Result<()> {
         let tag = "SupabaseClient.create";
+        debug!("SupabaseClient.create: {}, table: {}", tag, table);
         let s = serde_json::to_string(item).map_err(|e| anyhow!(e).context(tag))?;
-
         let client = self.postgrest.clone();
 
         let response = client
@@ -68,7 +75,10 @@ impl Client for SupabaseClient {
         table: &str,
         key: &str,
         items: Vec<(K, T)>,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        K: ToString + AsRef<str>,
+    {
         let tag = "SupabaseClient.update_by_keys";
 
         let client = self.postgrest.clone();
@@ -76,8 +86,8 @@ impl Client for SupabaseClient {
             let mut query = client
                 .from(table)
                 .update(serde_json::to_string(&item.1).map_err(|e| anyhow!(e).context(tag))?);
-            let id = serde_json::to_string(&item.0).map_err(|e| anyhow!(e).context(tag))?;
-            query = query.eq(key, &id);
+            query = query.eq(key, item.0);
+
             let response = query.execute().await?;
             if !response.status().is_success() {
                 bail!(format!(

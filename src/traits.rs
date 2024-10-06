@@ -18,7 +18,9 @@ pub trait Client: Send + Sync + 'static {
         table: &str,
         key: &str,
         items: Vec<(K, T)>,
-    ) -> Result<()>;
+    ) -> Result<()>
+    where
+        K: ToString + std::convert::AsRef<str>;
 
     async fn delete_by_keys<K: Serialize + Send + Sync>(
         &self,
@@ -36,7 +38,7 @@ pub trait Client: Send + Sync + 'static {
 pub trait ExtendedCrud<C: Client>:
     Sized + Serialize + DeserializeOwned + Send + Sync + 'static
 {
-    type PrimaryKey: Serialize + DeserializeOwned + Send + Sync + 'static;
+    type PrimaryKey: Serialize + DeserializeOwned + Send + Sync + 'static + ToString;
 
     const TABLE_NAME: &'static str;
 
@@ -77,11 +79,14 @@ pub trait ExtendedCrud<C: Client>:
         founds.into_iter().map(Self::to_entity).collect()
     }
 
-    async fn update(self, client: &C) -> Result<()> {
-        let tag = "ExtendedCrud.read_many failed";
-        let id = client.as_str(self.primary_key());
+    async fn update(&self, client: &C) -> Result<()> {
+        let tag = "ExtendedCrud.update failed";
         client
-            .update_by_keys(Self::TABLE_NAME, Self::PRIMARY_KEY_NAME, vec![(id, &self)])
+            .update_by_keys(
+                Self::TABLE_NAME,
+                Self::PRIMARY_KEY_NAME,
+                vec![(self.primary_key().to_string(), &self)],
+            )
             .await
             .context(tag)
     }

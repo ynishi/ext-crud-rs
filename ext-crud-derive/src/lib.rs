@@ -36,8 +36,14 @@ pub fn derive_extended_crud(input: TokenStream) -> TokenStream {
                 .attrs
                 .iter()
                 .find(|attr| attr.path().is_ident("primary_key"))
-                .map(|attr| attr.parse_args::<syn::LitStr>().unwrap().value())
-                .unwrap_or_else(|| primary_key_field.to_string());
+                .map(|attr| {
+                    if let Ok(attr) = attr.parse_args::<syn::LitStr>() {
+                        attr.value()
+                    } else {
+                        primary_key_field.to_string()
+                    }
+                })
+                .unwrap_or(primary_key_field.to_string());
             (primary_key_field, &f.ty, primary_key_name)
         })
         .or_else(|| {
