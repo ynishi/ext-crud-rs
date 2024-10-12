@@ -1,6 +1,6 @@
 [package]
 name = "ext-crud-rs"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Yutaka Nishimura <ytk.nishimura@gmail.com>"]
 description = "ext-crud-rs is a library to provide CRUD operations."
@@ -10,7 +10,7 @@ repository = "https://github.com/ynishi/ext-crud-rs"
 readme = "README.md"
 
 [dependencies]
-ext-crud-derive = { path = "./ext-crud-derive", optional = true }
+ext-crud-derive = { path = "./ext-crud-derive", optional = true, version = "0.1.0" }
 anyhow = "1.0.89"
 async-trait = "0.1.83"
 postgrest = "1.6.0"
