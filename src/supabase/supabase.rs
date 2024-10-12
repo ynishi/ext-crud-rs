@@ -1,4 +1,4 @@
-use crate::traits::Client;
+use crate::clients::client::Client;
 use anyhow::{anyhow, bail, Result};
 use async_trait::async_trait;
 use log::debug;

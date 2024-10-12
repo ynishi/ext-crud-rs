@@ -6,7 +6,7 @@ use syn::{
     Ident, Type,
 };
 
-#[proc_macro_derive(ImplExtendedCrud, attributes(table_name, primary_key))]
+#[proc_macro_derive(ExtendedCrud, attributes(table_name, primary_key))]
 pub fn derive_extended_crud(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
@@ -47,15 +47,15 @@ pub fn derive_extended_crud(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-#[proc_macro_derive(PartialStruct, attributes(partial_struct_name, primary_key))]
-pub fn partial_struct(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(PartialEntity, attributes(partial_entity_name, primary_key))]
+pub fn partial_entity(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let original_name = &input.ident;
 
     let partial_name = input
         .attrs
         .iter()
-        .find(|attr| attr.path().is_ident("partial_struct_name"))
+        .find(|attr| attr.path().is_ident("partial_entity_name"))
         .map(|attr| format_ident!("{}", attr.parse_args::<syn::LitStr>().unwrap().value()))
         .unwrap_or_else(|| format_ident!("Partial{}", original_name.to_string()));
 
@@ -108,7 +108,7 @@ pub fn partial_struct(input: TokenStream) -> TokenStream {
             }
         }
 
-        impl PartialStruct<#original_name> for #partial_name {
+        impl PartialEntity<#original_name> for #partial_name {
             type PrimaryKey = #primary_key_type;
 
             const PRIMARY_KEY_NAME: &'static str = #primary_key_name;

@@ -1,12 +1,11 @@
 use anyhow::Result;
-use ext_crud_rs::clients::supabase::SupabaseClient;
-use ext_crud_rs::traits::*;
-use ext_crud_rs::{ImplExtendedCrud, PartialStruct};
+use ext_crud_rs::{Client, SupabaseClient};
+use ext_crud_rs::{ExtendedCrud, PartialEntity};
 use serde::{Deserialize, Serialize};
 use tokio;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, ImplExtendedCrud, PartialStruct)]
+#[derive(Debug, Clone, Serialize, Deserialize, ExtendedCrud, PartialEntity)]
 #[table_name("users")]
 struct User {
     id: Uuid,
@@ -15,9 +14,9 @@ struct User {
     age: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ImplExtendedCrud, PartialStruct)]
+#[derive(Debug, Clone, Serialize, Deserialize, ExtendedCrud, PartialEntity)]
 #[table_name("products")]
-#[partial_struct_name("ProductUpdate")]
+#[partial_entity_name("ProductUpdate")]
 struct Product {
     #[primary_key("product_id")]
     #[serde(rename = "product_id")] // TODO support only use primary_key(auto rename)

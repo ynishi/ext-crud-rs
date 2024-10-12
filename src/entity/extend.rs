@@ -2,37 +2,7 @@ use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
 
-#[async_trait]
-pub trait Client: Send + Sync + 'static {
-    async fn create<T: Serialize + Send + Sync>(&self, table: &str, item: &T) -> Result<()>;
-
-    async fn find_by_keys<K: Serialize + Send + Sync>(
-        &self,
-        table: &str,
-        key: &str,
-        ids: Vec<K>,
-    ) -> Result<Vec<serde_json::Value>>;
-
-    async fn update_by_keys<K: Serialize + Send + Sync, T: Serialize + Send + Sync>(
-        &self,
-        table: &str,
-        key: &str,
-        items: Vec<(K, T)>,
-    ) -> Result<()>
-    where
-        K: ToString + std::convert::AsRef<str>;
-
-    async fn delete_by_keys<K: Serialize + Send + Sync>(
-        &self,
-        table: &str,
-        key: &str,
-        ids: Vec<K>,
-    ) -> Result<()>;
-
-    fn as_str<T: Serialize>(&self, v: T) -> String {
-        serde_json::json!(v).to_string()
-    }
-}
+use crate::clients::client::Client;
 
 #[async_trait]
 pub trait ExtendedCrud<C: Client>:
@@ -124,7 +94,7 @@ pub trait ExtendedCrud<C: Client>:
     fn primary_key(&self) -> &Self::PrimaryKey;
 }
 
-pub trait PartialStruct<T>: Serialize + Send + Sync + 'static {
+pub trait PartialEntity<T>: Serialize + Send + Sync + 'static {
     type PrimaryKey: Serialize + Send + Sync + 'static + ToString;
 
     const PRIMARY_KEY_NAME: &'static str;
