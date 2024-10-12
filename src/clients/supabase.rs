@@ -83,6 +83,7 @@ impl Client for SupabaseClient {
 
         let client = self.postgrest.clone();
         for item in items {
+            println!("{}", serde_json::to_string(&item.1).unwrap());
             let mut query = client
                 .from(table)
                 .update(serde_json::to_string(&item.1).map_err(|e| anyhow!(e).context(tag))?);

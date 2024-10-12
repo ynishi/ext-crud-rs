@@ -69,11 +69,62 @@ async fn main() -> Result<()> {
     let updated_product = Product::read(&client, product.product_code.clone()).await?;
     println!("Updated Product: {:?}", updated_product);
 
-    let mut product_update = product.to_partial();
-    product_update.price = Some(24.99);
+    let mut partial_product = product.to_partial();
+    partial_product.price = Some(26.99);
+    println!("Partial Product: {:?}", partial_product);
+    let applied_product = partial_product.apply_to(&updated_product);
+    println!("Applied Product: {:?}", applied_product);
+    applied_product.update(&client).await?;
+    let updated_applied_product = Product::read(&client, product.product_code.clone()).await?;
+    println!("Updated Partial Product: {:?}", updated_applied_product);
 
     let mut new_partial_product = ProductUpdate::new();
     new_partial_product.price = Some(29.99);
+    println!("New Partial Product: {:?}", new_partial_product);
 
     Ok(())
+}
+
+#[test]
+fn test_partial_no_specific_name() {
+    let id = Uuid::new_v4();
+    let user = User {
+        id,
+        name: "John Doe".to_string(),
+        email: "john@example.com".to_string(),
+        age: 30,
+    };
+    assert_eq!(user.primary_key(), &id);
+    assert_eq!(User::primary_key_name(), "id");
+
+    let mut partial_user = user.to_partial();
+    assert_eq!(partial_user.id, Some(id));
+    assert_eq!(partial_user.name, Some("John Doe".to_string()));
+    assert_eq!(partial_user.email, Some("john@example.com".to_string()));
+    assert_eq!(partial_user.age, Some(30));
+    partial_user.age = Some(40);
+    assert_eq!(partial_user.primary_key(), Some(id));
+    let updated = partial_user.apply_to(&user);
+    assert_eq!(40, updated.age);
+    assert_eq!(user.id, updated.id);
+}
+
+#[test]
+fn test_partial_specific_name() {
+    let code_or_id = "PROD-001";
+    let product = Product {
+        product_code: code_or_id.to_string(),
+        name: "John Doe Product".to_string(),
+        price: 30.0,
+    };
+    assert_eq!(*product.primary_key(), code_or_id.to_string());
+
+    let mut partial_product = product.to_partial();
+    assert_eq!(partial_product.product_code, Some(code_or_id.to_string()));
+    assert_eq!(partial_product.name, Some("John Doe Product".to_string()));
+    assert_eq!(partial_product.price, Some(30.0));
+    assert_eq!(partial_product.primary_key(), Some(code_or_id.to_string()));
+    partial_product.price = Some(40.0);
+    let updated = partial_product.apply_to(&product);
+    assert_eq!(40.0, updated.price);
 }

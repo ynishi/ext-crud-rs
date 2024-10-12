@@ -121,9 +121,17 @@ pub trait ExtendedCrud<C: Client>:
             .context(tag)
     }
 
-    async fn update_partial(self, _client: &C) -> Result<Self> {
-        todo!()
-    }
-
     fn primary_key(&self) -> &Self::PrimaryKey;
+}
+
+pub trait PartialStruct<T>: Serialize + Send + Sync + 'static {
+    type PrimaryKey: Serialize + Send + Sync + 'static + ToString;
+
+    const PRIMARY_KEY_NAME: &'static str;
+
+    fn new() -> Self;
+
+    fn apply_to(&self, original: &T) -> T;
+
+    fn primary_key(&self) -> Option<Self::PrimaryKey>;
 }
