@@ -6,17 +6,19 @@ use crate::clients::client::Client;
 
 #[async_trait]
 pub trait ExtendedCrud<C: Client>:
-    Sized + Serialize + DeserializeOwned + Send + Sync + 'static
+    Sized
+    + Serialize
+    + DeserializeOwned
+    + Send
+    + Sync
+    + 'static
+    + TryFromError<serde_json::Value, serde_json::Error>
 {
     type PrimaryKey: Serialize + DeserializeOwned + Send + Sync + 'static + ToString;
 
     const TABLE_NAME: &'static str;
 
     const PRIMARY_KEY_NAME: &'static str;
-
-    fn to_entity(value: serde_json::Value) -> Result<Self> {
-        serde_json::from_value(value).map_err(|e| anyhow!(e))
-    }
 
     async fn create(self, client: &C) -> Result<()> {
         client
@@ -37,7 +39,7 @@ pub trait ExtendedCrud<C: Client>:
         let value = founds
             .pop()
             .ok_or_else(|| anyhow!("Not found").context(tag))?;
-        Self::to_entity(value)
+        Self::try_from_err(value).map_err(|e| anyhow!(e).context(tag))
     }
 
     async fn read_many(ids: Vec<Self::PrimaryKey>, client: &C) -> Result<Vec<Self>> {
@@ -46,7 +48,10 @@ pub trait ExtendedCrud<C: Client>:
             .find_by_keys::<Self::PrimaryKey>(Self::TABLE_NAME, Self::PRIMARY_KEY_NAME, ids)
             .await
             .context(tag)?;
-        founds.into_iter().map(Self::to_entity).collect()
+        founds
+            .into_iter()
+            .map(|value| Self::try_from_err(value).map_err(|e| anyhow!(e).context(tag)))
+            .collect()
     }
 
     async fn update(&self, client: &C) -> Result<()> {
@@ -92,6 +97,10 @@ pub trait ExtendedCrud<C: Client>:
     }
 
     fn primary_key(&self) -> &Self::PrimaryKey;
+}
+
+pub trait TryFromError<T, E>: Sized {
+    fn try_from_err(value: T) -> Result<Self, E>;
 }
 
 pub trait PartialEntity<T>: Serialize + Send + Sync + 'static {

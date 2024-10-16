@@ -42,6 +42,12 @@ pub fn derive_extended_crud(input: TokenStream) -> TokenStream {
                  &self.#primary_key_field
              }
         }
+        impl TryFromError<serde_json::Value, serde_json::Error> for #name {
+
+            fn try_from_err(value: serde_json::Value) -> Result<Self, serde_json::Error> {
+                serde_json::from_value(value).map_err(Into::into)
+            }
+        }
     };
 
     TokenStream::from(expanded)
