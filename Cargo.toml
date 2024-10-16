@@ -10,7 +10,7 @@ repository = "https://github.com/ynishi/ext-crud-rs"
 readme = "README.md"
 
 [dependencies]
-ext-crud-derive = { path = "./ext-crud-derive", optional = true, version = "0.1.0" }
+ext-crud-derive = { path = "./ext-crud-derive", optional = true, version = "0.1.1" }
 anyhow = "1.0.89"
 async-trait = "0.1.83"
 postgrest = "1.6.0"
