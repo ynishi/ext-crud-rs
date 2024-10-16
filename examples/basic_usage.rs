@@ -1,6 +1,5 @@
 use anyhow::Result;
-use ext_crud_rs::{Client, SupabaseClient};
-use ext_crud_rs::{ExtendedCrud, PartialEntity};
+use ext_crud_rs::prelude::*;
 use serde::{Deserialize, Serialize};
 use tokio;
 use uuid::Uuid;
