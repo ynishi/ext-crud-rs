@@ -25,23 +25,42 @@ impl SupabaseClient {
 
 #[async_trait]
 impl Client for SupabaseClient {
-    async fn create<T: Serialize + Send + Sync>(&self, table: &str, item: &T) -> Result<()> {
+    async fn creates<T: Serialize + Send + Sync>(&self, table: &str, items: Vec<T>) -> Result<()> {
         let tag = "SupabaseClient.create";
         debug!("SupabaseClient.create: {}, table: {}", tag, table);
-        let s = serde_json::to_string(item).map_err(|e| anyhow!(e).context(tag))?;
-        let client = self.postgrest.clone();
+        for item in items {
+            let s = serde_json::to_string(&item).map_err(|e| anyhow!(e).context(tag))?;
+            let client = self.postgrest.clone();
 
-        let response = client
-            .from(table)
-            .insert(s)
-            .execute()
-            .await
-            .map_err(|e| anyhow!(e).context(tag))?;
+            let response = client
+                .from(table)
+                .insert(s)
+                .execute()
+                .await
+                .map_err(|e| anyhow!(e).context(tag))?;
 
-        if !response.status().is_success() {
-            bail!("{}, Request failed with status: {}", tag, response.status())
+            if !response.status().is_success() {
+                bail!("{}, Request failed with status: {}", tag, response.status())
+            }
         }
         Ok(())
+    }
+
+    async fn list(&self, table: &str) -> Result<Vec<serde_json::Value>> {
+        let tag = "SupabaseClient.list";
+
+        let client = self.postgrest.clone();
+        let response = client.from(table).select("*").execute().await?;
+        if !response.status().is_success() {
+            bail!(format!(
+                "{}, Request failed with status: {}",
+                tag,
+                response.status()
+            ));
+        }
+        let text = response.text().await.map_err(|e| anyhow!(e).context(tag))?;
+        let data = serde_json::from_str(&text).map_err(|e| anyhow!(e).context(tag))?;
+        Ok(data)
     }
 
     async fn find_by_keys<K: Serialize + Send + Sync>(

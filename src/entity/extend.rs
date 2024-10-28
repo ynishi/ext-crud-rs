@@ -20,11 +20,27 @@ pub trait ExtendedCrud<C: Client>:
 
     const PRIMARY_KEY_NAME: &'static str;
 
-    async fn create(self, client: &C) -> Result<()> {
+    async fn create(&self, client: &C) -> Result<()> {
         client
-            .create(Self::TABLE_NAME, &self)
+            .creates(Self::TABLE_NAME, vec![self])
             .await
             .map_err(|e| anyhow!(e).context("ExtendedCrud.create failed"))
+    }
+
+    async fn create_many(vs: Vec<Self>, client: &C) -> Result<()> {
+        client
+            .creates(Self::TABLE_NAME, vs)
+            .await
+            .map_err(|e| anyhow!(e).context("ExtendedCrud.create_many failed"))
+    }
+
+    async fn read_all(client: &C) -> Result<Vec<Self>> {
+        let tag = "ExtendedCrud.read_all failed";
+        let founds = client.list(Self::TABLE_NAME).await.context(tag)?;
+        founds
+            .into_iter()
+            .map(|value| Self::try_from_err(value).map_err(|e| anyhow!(e).context(tag)))
+            .collect()
     }
 
     async fn read(client: &C, id: Self::PrimaryKey) -> Result<Self> {

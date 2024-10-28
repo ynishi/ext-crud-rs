@@ -4,7 +4,9 @@ use serde::Serialize;
 
 #[async_trait]
 pub trait Client: Send + Sync + 'static {
-    async fn create<T: Serialize + Send + Sync>(&self, table: &str, item: &T) -> Result<()>;
+    async fn creates<T: Serialize + Send + Sync>(&self, table: &str, item: Vec<T>) -> Result<()>;
+
+    async fn list(&self, table: &str) -> Result<Vec<serde_json::Value>>;
 
     async fn find_by_keys<K: Serialize + Send + Sync>(
         &self,

@@ -42,6 +42,8 @@ async fn main() -> Result<()> {
     };
 
     user.clone().create(&client).await?;
+    let users = User::read_all(&client).await?;
+    println!("Users: {:?}", users);
     let crated_user = User::read(&client, user.id).await?;
     println!("Crated User: {:?}", crated_user);
 
