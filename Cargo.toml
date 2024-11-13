@@ -20,6 +20,7 @@ uuid = { version = "1.10.0", features = ["v4", "serde"] }
 tokio = { version = "1.40.0", features = ["full"] }
 log = "0.4.22"
 thiserror = "2.0.3"
+strum = { version = "0.26.3", features = ["derive"] }
 
 
 [workspace]

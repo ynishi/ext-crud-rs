@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::str::FromStr;
 
 /// QueryContext is a struct that represents a query context.
 /// It contains filter, sort, and pagination information.
@@ -11,8 +12,15 @@ pub struct QueryContext<F: QueryField> {
     pub pagination: Option<Pagination>,
 }
 
-pub trait QueryField: Debug + Clone + Send + Sync + 'static {
-    type Value: Serialize + for<'de> Deserialize<'de> + Debug + Clone + Send + Sync + 'static;
+pub trait QueryField: Debug + Clone + Send + Sync + 'static + FromStr {
+    type Value: Serialize
+        + for<'de> Deserialize<'de>
+        + Debug
+        + Clone
+        + Send
+        + Sync
+        + 'static
+        + From<serde_json::Value>;
     fn name(&self) -> &'static str;
 }
 
@@ -185,7 +193,7 @@ pub enum StringOperator {
 /// use serde::{Deserialize, Serialize};
 /// use ext_crud_rs::entity::query::{QueryBuilder, QueryField, QueryExpr, StringOperator, ComparisonOperator };
 ///
-/// #[derive(Debug, Clone, Serialize, Deserialize)]
+/// #[derive(Debug, Clone, Serialize, Deserialize, strum::EnumString)]
 /// enum UserField {
 ///   Age,
 ///   Name,
@@ -284,6 +292,11 @@ impl<F: QueryField> QueryBuilder<F> {
         self
     }
 
+    pub fn not(mut self, expression: QueryExpr<F>) -> Self {
+        self.expressions.push(QueryExpr::Not(Box::new(expression)));
+        self
+    }
+
     pub fn build(self) -> QueryExpr<F> {
         match self.joiner {
             QueryExpr::All(vs) => QueryExpr::All(vs),
@@ -321,7 +334,7 @@ impl Default for Pagination {
 mod tests {
     use super::*;
 
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, strum::EnumString)]
     enum TestField {
         Age,
     }
