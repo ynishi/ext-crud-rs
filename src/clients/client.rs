@@ -2,11 +2,19 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde::Serialize;
 
+use crate::entity::query::{Query, QueryField};
+
 #[async_trait]
 pub trait Client: Send + Sync + 'static {
     async fn creates<T: Serialize + Send + Sync>(&self, table: &str, item: Vec<T>) -> Result<()>;
 
     async fn list(&self, table: &str) -> Result<Vec<serde_json::Value>>;
+
+    async fn find<T: QueryField>(
+        &self,
+        table: &str,
+        query: &Query<T>,
+    ) -> Result<Vec<serde_json::Value>>;
 
     async fn find_by_keys<K: Serialize + Send + Sync>(
         &self,
@@ -30,6 +38,8 @@ pub trait Client: Send + Sync + 'static {
         key: &str,
         ids: Vec<K>,
     ) -> Result<()>;
+
+    async fn count(&self, table: &str) -> Result<u64>;
 
     fn as_str<T: Serialize>(&self, v: T) -> String {
         serde_json::json!(v).to_string()
