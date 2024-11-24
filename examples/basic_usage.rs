@@ -1,5 +1,8 @@
 use anyhow::Result;
-use ext_crud_rs::prelude::*;
+use ext_crud_rs::{
+    entity::query::{ComparisonOperator, QueryBuilder, QueryField, StringOperator},
+    prelude::*,
+};
 use serde::{Deserialize, Serialize};
 use tokio;
 use uuid::Uuid;
@@ -11,6 +14,24 @@ struct User {
     name: String,
     email: String,
     age: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, strum::EnumString)]
+enum UserField {
+    Age,
+    Name,
+    Email,
+}
+
+impl QueryField for UserField {
+    type Value = serde_json::Value;
+    fn name(&self) -> &'static str {
+        match self {
+            UserField::Age => "age",
+            UserField::Name => "name",
+            UserField::Email => "email",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ExtendedCrud, PartialEntity)]
@@ -44,8 +65,22 @@ async fn main() -> Result<()> {
     user.clone().create(&client).await?;
     let users = User::read_all(&client).await?;
     println!("Users: {:?}", users);
-    let crated_user = User::read(&client, user.id).await?;
-    println!("Crated User: {:?}", crated_user);
+    let created_user = User::read(&client, user.id).await?;
+    println!("Created User: {:?}", created_user);
+
+    let query_expr = QueryBuilder::default()
+        .add_comparison(
+            UserField::Age,
+            ComparisonOperator::Gt(serde_json::json!(20)),
+        )
+        .add_string_operation(
+            UserField::Name,
+            StringOperator::Contains("John".to_string()),
+        )
+        .build();
+    let query = vec![query_expr];
+    let found_user = User::read_by(&client, &query).await;
+    println!("Found User: {:?}", found_user);
 
     user.age = 40;
     user.update(&client).await?;
