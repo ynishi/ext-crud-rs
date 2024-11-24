@@ -226,7 +226,7 @@ pub enum StringOperator {
 /// let query = QueryBuilder::default()
 ///   .add_comparison(UserField::Age, ComparisonOperator::Gt(serde_json::json!(20)))
 ///   .add_string_operation(UserField::Name, StringOperator::Contains("John".to_string()))
-///   .and((email_example_comparison, email_not_null_comparison))
+///   .and(email_example_comparison, email_not_null_comparison)
 ///   .build();
 ///
 /// assert!(!query.is_empty());
@@ -274,12 +274,62 @@ impl<F: QueryField> QueryBuilder<F> {
         self
     }
 
-    pub fn and(self, expressions: (QueryExpr<F>, QueryExpr<F>)) -> Self {
-        self.all(vec![expressions.0, expressions.1])
+    pub fn and(self, expression_a: QueryExpr<F>, expression_b: QueryExpr<F>) -> Self {
+        self.all(vec![expression_a, expression_b])
     }
 
-    pub fn or(self, expressions: (QueryExpr<F>, QueryExpr<F>)) -> Self {
-        self.any(vec![expressions.0, expressions.1])
+    pub fn and_last(mut self, expression: QueryExpr<F>) -> Self {
+        let last = self.expressions.pop();
+        if let Some(last) = last {
+            self.and(last, expression)
+        } else {
+            self
+        }
+    }
+
+    pub fn and_last_comp(self, field: F, operator: ComparisonOperator<F::Value>) -> Self {
+        let expr = QueryExpr::Comparison {
+            field,
+            op: operator,
+        };
+        self.and_last(expr)
+    }
+
+    pub fn and_last_str(self, field: F, operator: StringOperator) -> Self {
+        let expr = QueryExpr::String {
+            field,
+            op: operator,
+        };
+        self.and_last(expr)
+    }
+
+    pub fn or(self, expression_a: QueryExpr<F>, expression_b: QueryExpr<F>) -> Self {
+        self.any(vec![expression_a, expression_b])
+    }
+
+    pub fn or_last(mut self, expression: QueryExpr<F>) -> Self {
+        let last = self.expressions.pop();
+        if let Some(last) = last {
+            self.or(last, expression)
+        } else {
+            self
+        }
+    }
+
+    pub fn or_last_comp(self, field: F, operator: ComparisonOperator<F::Value>) -> Self {
+        let expr = QueryExpr::Comparison {
+            field,
+            op: operator,
+        };
+        self.or_last(expr)
+    }
+
+    pub fn or_last_str(self, field: F, operator: StringOperator) -> Self {
+        let expr = QueryExpr::String {
+            field,
+            op: operator,
+        };
+        self.or_last(expr)
     }
 
     pub fn all(mut self, expressions: Vec<QueryExpr<F>>) -> Self {
@@ -297,10 +347,18 @@ impl<F: QueryField> QueryBuilder<F> {
         self
     }
 
+    pub fn not_last(mut self) -> Self {
+        let expession = self.expressions.pop();
+        if let Some(expression) = expession {
+            self.expressions.push(QueryExpr::Not(Box::new(expression)));
+        }
+        self
+    }
+
     pub fn build(self) -> QueryExpr<F> {
         match self.joiner {
-            QueryExpr::All(vs) => QueryExpr::All(vs),
-            QueryExpr::Any(vs) => QueryExpr::Any(vs),
+            QueryExpr::All(_) => QueryExpr::All(self.expressions),
+            QueryExpr::Any(_) => QueryExpr::Any(self.expressions),
             _ => QueryExpr::All(self.expressions), // default joiner is ALL
         }
     }
@@ -424,5 +482,371 @@ mod tests {
         assert_eq!(expr.operators(), 2);
         assert_eq!(expr.depth(), 3);
         assert!(!expr.is_empty());
+    }
+
+    #[test]
+    fn test_query_builder_add() {
+        let query = QueryBuilder::default()
+            .add_comparison(
+                TestField::Age,
+                ComparisonOperator::Gt(serde_json::json!(20)),
+            )
+            .add_string_operation(TestField::Age, StringOperator::Contains("test".to_string()))
+            .build();
+
+        assert_eq!(
+            query,
+            QueryExpr::All(vec![
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20))
+                },
+                QueryExpr::String {
+                    field: TestField::Age,
+                    op: StringOperator::Contains("test".to_string())
+                }
+            ])
+        );
+    }
+
+    #[test]
+    fn test_query_builder_set_joiner() {
+        let query = QueryBuilder::default()
+            .set_joiner_all()
+            .add_comparison(
+                TestField::Age,
+                ComparisonOperator::Gt(serde_json::json!(20)),
+            )
+            .add_string_operation(TestField::Age, StringOperator::Contains("test".to_string()))
+            .build();
+
+        assert_eq!(
+            query,
+            QueryExpr::All(vec![
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20))
+                },
+                QueryExpr::String {
+                    field: TestField::Age,
+                    op: StringOperator::Contains("test".to_string())
+                }
+            ])
+        );
+
+        let query = QueryBuilder::default()
+            .set_joiner_any()
+            .add_comparison(
+                TestField::Age,
+                ComparisonOperator::Gt(serde_json::json!(20)),
+            )
+            .add_string_operation(TestField::Age, StringOperator::Contains("test".to_string()))
+            .build();
+
+        assert_eq!(
+            query,
+            QueryExpr::Any(vec![
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20))
+                },
+                QueryExpr::String {
+                    field: TestField::Age,
+                    op: StringOperator::Contains("test".to_string())
+                }
+            ])
+        );
+    }
+
+    #[test]
+    fn test_query_builder_any_like() {
+        let query_any = QueryBuilder::default()
+            .any(vec![
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20)),
+                },
+                QueryExpr::String {
+                    field: TestField::Age,
+                    op: StringOperator::Contains("test".to_string()),
+                },
+            ])
+            .build();
+
+        assert_eq!(
+            query_any,
+            QueryExpr::All(vec![QueryExpr::Any(vec![
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20))
+                },
+                QueryExpr::String {
+                    field: TestField::Age,
+                    op: StringOperator::Contains("test".to_string())
+                }
+            ])])
+        );
+
+        let query_or = QueryBuilder::default()
+            .or(
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20)),
+                },
+                QueryExpr::String {
+                    field: TestField::Age,
+                    op: StringOperator::Contains("test".to_string()),
+                },
+            )
+            .build();
+
+        assert_eq!(
+            query_or,
+            QueryExpr::All(vec![QueryExpr::Any(vec![
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20))
+                },
+                QueryExpr::String {
+                    field: TestField::Age,
+                    op: StringOperator::Contains("test".to_string())
+                }
+            ])])
+        );
+
+        let query_last_or = QueryBuilder::default()
+            .add_comparison(
+                TestField::Age,
+                ComparisonOperator::Gt(serde_json::json!(20)),
+            )
+            .or_last(QueryExpr::String {
+                field: TestField::Age,
+                op: StringOperator::Contains("test".to_string()),
+            })
+            .build();
+
+        assert_eq!(
+            query_last_or,
+            QueryExpr::All(vec![QueryExpr::Any(vec![
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20))
+                },
+                QueryExpr::String {
+                    field: TestField::Age,
+                    op: StringOperator::Contains("test".to_string())
+                }
+            ])])
+        );
+
+        let query_last_or_comp = QueryBuilder::default()
+            .add_comparison(
+                TestField::Age,
+                ComparisonOperator::Gt(serde_json::json!(20)),
+            )
+            .or_last_comp(
+                TestField::Age,
+                ComparisonOperator::Gt(serde_json::json!(20)),
+            )
+            .build();
+
+        assert_eq!(
+            query_last_or_comp,
+            QueryExpr::All(vec![QueryExpr::Any(vec![
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20))
+                },
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20))
+                }
+            ])])
+        );
+
+        let query_last_or_str = QueryBuilder::default()
+            .add_comparison(
+                TestField::Age,
+                ComparisonOperator::Gt(serde_json::json!(20)),
+            )
+            .or_last_str(TestField::Age, StringOperator::Contains("test".to_string()))
+            .build();
+
+        assert_eq!(
+            query_last_or_str,
+            QueryExpr::All(vec![QueryExpr::Any(vec![
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20))
+                },
+                QueryExpr::String {
+                    field: TestField::Age,
+                    op: StringOperator::Contains("test".to_string())
+                }
+            ])])
+        );
+    }
+
+    #[test]
+    fn test_query_builder_and_like() {
+        let query_all = QueryBuilder::default()
+            .all(vec![
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20)),
+                },
+                QueryExpr::String {
+                    field: TestField::Age,
+                    op: StringOperator::Contains("test".to_string()),
+                },
+            ])
+            .build();
+
+        assert_eq!(
+            query_all,
+            QueryExpr::All(vec![QueryExpr::All(vec![
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20))
+                },
+                QueryExpr::String {
+                    field: TestField::Age,
+                    op: StringOperator::Contains("test".to_string())
+                }
+            ])])
+        );
+
+        let query_and = QueryBuilder::default()
+            .and(
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20)),
+                },
+                QueryExpr::String {
+                    field: TestField::Age,
+                    op: StringOperator::Contains("test".to_string()),
+                },
+            )
+            .build();
+
+        assert_eq!(
+            query_and,
+            QueryExpr::All(vec![QueryExpr::All(vec![
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20))
+                },
+                QueryExpr::String {
+                    field: TestField::Age,
+                    op: StringOperator::Contains("test".to_string())
+                }
+            ])])
+        );
+
+        let query_last_and = QueryBuilder::default()
+            .add_comparison(
+                TestField::Age,
+                ComparisonOperator::Gt(serde_json::json!(20)),
+            )
+            .and_last(QueryExpr::String {
+                field: TestField::Age,
+                op: StringOperator::Contains("test".to_string()),
+            })
+            .build();
+
+        assert_eq!(
+            query_last_and,
+            QueryExpr::All(vec![QueryExpr::All(vec![
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20))
+                },
+                QueryExpr::String {
+                    field: TestField::Age,
+                    op: StringOperator::Contains("test".to_string())
+                }
+            ])])
+        );
+
+        let query_last_and_comp = QueryBuilder::default()
+            .add_comparison(
+                TestField::Age,
+                ComparisonOperator::Gt(serde_json::json!(20)),
+            )
+            .and_last_comp(
+                TestField::Age,
+                ComparisonOperator::Gt(serde_json::json!(20)),
+            )
+            .build();
+
+        assert_eq!(
+            query_last_and_comp,
+            QueryExpr::All(vec![QueryExpr::All(vec![
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20))
+                },
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20))
+                }
+            ])])
+        );
+
+        let query_last_and_str = QueryBuilder::default()
+            .add_comparison(
+                TestField::Age,
+                ComparisonOperator::Gt(serde_json::json!(20)),
+            )
+            .and_last_str(TestField::Age, StringOperator::Contains("test".to_string()))
+            .build();
+
+        assert_eq!(
+            query_last_and_str,
+            QueryExpr::All(vec![QueryExpr::All(vec![
+                QueryExpr::Comparison {
+                    field: TestField::Age,
+                    op: ComparisonOperator::Gt(serde_json::json!(20))
+                },
+                QueryExpr::String {
+                    field: TestField::Age,
+                    op: StringOperator::Contains("test".to_string())
+                }
+            ])])
+        );
+    }
+
+    #[test]
+    fn test_query_builder_not_like() {
+        let query_not = QueryBuilder::default()
+            .not(QueryExpr::Comparison {
+                field: TestField::Age,
+                op: ComparisonOperator::Gt(serde_json::json!(20)),
+            })
+            .build();
+
+        assert_eq!(
+            query_not,
+            QueryExpr::All(vec![QueryExpr::Not(Box::new(QueryExpr::Comparison {
+                field: TestField::Age,
+                op: ComparisonOperator::Gt(serde_json::json!(20))
+            }))])
+        );
+
+        let query_not_last = QueryBuilder::default()
+            .add_comparison(
+                TestField::Age,
+                ComparisonOperator::Gt(serde_json::json!(20)),
+            )
+            .not_last()
+            .build();
+
+        assert_eq!(
+            query_not_last,
+            QueryExpr::All(vec![QueryExpr::Not(Box::new(QueryExpr::Comparison {
+                field: TestField::Age,
+                op: ComparisonOperator::Gt(serde_json::json!(20))
+            }))])
+        );
     }
 }
