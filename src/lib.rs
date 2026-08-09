@@ -1,18 +1,13 @@
-pub mod entity;
-
-pub use entity::extend::ExtendedCrud;
-
-pub use entity::extend::PartialEntity;
-
-pub use entity::extend::TryFromError;
-
 pub mod clients;
-
-pub use clients::client::Client;
-
+pub mod entity;
+pub mod refine;
 pub mod supabase;
 
-pub use supabase::supabase::SupabaseClient;
+pub use clients::client::Client;
+pub use entity::extend::ExtendedCrud;
+pub use entity::extend::PartialEntity;
+pub use entity::extend::TryFromError;
+pub use supabase::client::SupabaseClient;
 
 #[cfg(feature = "derive")]
 pub use ext_crud_derive::*;
@@ -25,7 +20,7 @@ pub mod prelude {
     pub use crate::entity::extend::ExtendedCrud;
     pub use crate::entity::extend::PartialEntity;
     pub use crate::entity::extend::TryFromError;
-    pub use crate::supabase::supabase::SupabaseClient;
+    pub use crate::supabase::client::SupabaseClient;
 
     #[cfg(feature = "derive")]
     pub use ext_crud_derive::*;

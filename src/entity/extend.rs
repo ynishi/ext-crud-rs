@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::clients::client::Client;
+use crate::entity::query::{Query, QueryField};
 
 #[async_trait]
 pub trait ExtendedCrud<C: Client>:
@@ -20,11 +21,18 @@ pub trait ExtendedCrud<C: Client>:
 
     const PRIMARY_KEY_NAME: &'static str;
 
-    async fn create(self, client: &C) -> Result<()> {
+    async fn create(&self, client: &C) -> Result<()> {
         client
-            .create(Self::TABLE_NAME, &self)
+            .creates(Self::TABLE_NAME, vec![self])
             .await
             .map_err(|e| anyhow!(e).context("ExtendedCrud.create failed"))
+    }
+
+    async fn create_many(vs: Vec<Self>, client: &C) -> Result<()> {
+        client
+            .creates(Self::TABLE_NAME, vs)
+            .await
+            .map_err(|e| anyhow!(e).context("ExtendedCrud.create_many failed"))
     }
 
     async fn read(client: &C, id: Self::PrimaryKey) -> Result<Self> {
@@ -48,6 +56,24 @@ pub trait ExtendedCrud<C: Client>:
             .find_by_keys::<Self::PrimaryKey>(Self::TABLE_NAME, Self::PRIMARY_KEY_NAME, ids)
             .await
             .context(tag)?;
+        founds
+            .into_iter()
+            .map(|value| Self::try_from_err(value).map_err(|e| anyhow!(e).context(tag)))
+            .collect()
+    }
+
+    async fn read_by<T: QueryField>(client: &C, query: &Query<T>) -> Result<Vec<Self>> {
+        let tag = "ExtendedCrud.read_by failed";
+        let founds = client.find(Self::TABLE_NAME, query).await.context(tag)?;
+        founds
+            .into_iter()
+            .map(|value| Self::try_from_err(value).map_err(|e| anyhow!(e).context(tag)))
+            .collect()
+    }
+
+    async fn read_all(client: &C) -> Result<Vec<Self>> {
+        let tag = "ExtendedCrud.read_all failed";
+        let founds = client.list(Self::TABLE_NAME).await.context(tag)?;
         founds
             .into_iter()
             .map(|value| Self::try_from_err(value).map_err(|e| anyhow!(e).context(tag)))
@@ -94,6 +120,11 @@ pub trait ExtendedCrud<C: Client>:
             .delete_by_keys(Self::TABLE_NAME, Self::PRIMARY_KEY_NAME, ids)
             .await
             .context(tag)
+    }
+
+    async fn count(client: &C) -> Result<u64> {
+        let tag = "ExtendedCrud.count failed";
+        client.count(Self::TABLE_NAME).await.context(tag)
     }
 
     fn primary_key(&self) -> &Self::PrimaryKey;
